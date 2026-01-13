@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>🌌 Cosmic Slot Pro 🌌</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;font-family:Arial,sans-serif;overflow:hidden;background:#000;}
+#canvas-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;}
+#container{display:flex;position:relative;z-index:1;padding:20px;justify-content:center;}
+#controls{width:220px;margin-right:20px;background:linear-gradient(180deg,#0a0a20,#1c1c40);padding:20px;border-radius:16px;box-shadow:0 0 30px #0ff;}
+#controls input,#controls select,#controls button{width:100%;margin-top:10px;padding:6px;font-size:16px;border-radius:8px;border:none;}
+#controls input{background:linear-gradient(90deg,#111,#222);color:#0ff;}
+#controls select,#controls button{background:linear-gradient(90deg,#6cf,#0099ff);color:#000;cursor:pointer;}
+#reels{display:grid;grid-template-columns:repeat(5,100px);grid-template-rows:repeat(3,100px);grid-gap:8px;}
+.cell{width:100px;height:100px;background:rgba(255,255,255,0.05);display:flex;justify-content:center;align-items:center;font-size:40px;border-radius:10px;transition:transform 0.5s,background 0.5s;}
+.cell.win{animation:glow 0.8s ease-in-out infinite alternate;}
+@keyframes glow{from{box-shadow:0 0 5px #6cf;}to{box-shadow:0 0 25px #0ff;transform:scale(1.3);}}
+#info{margin-top:10px;font-size:16px;color:#fff;}
+button.spin:hover,#controls button:hover{opacity:0.85;}
+</style>
+</head>
+<body>
+
+<canvas id="canvas-bg"></canvas>
+
+<div id="container">
+<div id="controls">
+<div>Депозит (max 1 000 000):</div>
+<input type="number" id="deposit" value="1000" min="1" max="1000000">
+<button onclick="setDeposit()">Пополнить</button>
+<div>Ставка:</div>
+<select id="bet">
+<option value="20">20</option><option value="40">40</option><option value="60">60</option>
+<option value="80">80</option><option value="100">100</option><option value="200">200</option>
+<option value="500">500</option>
+<option value="1000">1000</option>
+</select>
+<button id="music-toggle" onclick="toggleMusic()">Вкл/Выкл Музыку</button>
+<div id="info">
+Баланс: <span id="balance">0</span><br>
+Выигрыш: <span id="lastWin">0</span><br>
+Free Spins: <span id="freeSpins">0</span>
+</div>
+<button class="spin" onclick="spin()">SPIN</button>
+</div>
+<div id="reels"></div>
+</div>
+
+<audio id="bgMusic" src="https://cdn.pixabay.com/download/audio/2021/09/16/audio_4a9dc60b22.mp3?filename=space-ambience-113270.mp3" loop autoplay></audio>
+<audio id="spinSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="winSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+<audio id="bonusSound" src="https://actions.google.com/sounds/v1/cartoon/slide_whistle.ogg"></audio>
+
+<script>
+// ===== Космос с параллаксом =====
+const canvas=document.getElementById('canvas-bg');
+const ctx=canvas.getContext('2d');
+canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+
+const stars=[]; for(let i=0;i<300;i++){stars.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,z:Math.random()*1.5+0.5});}
+const starsFar=[]; for(let i=0;i<100;i++){starsFar.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,z:Math.random()*0.5+0.2});}
+const comets=[]; for(let i=0;i<20;i++){comets.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,dx:(Math.random()-0.5)*2,dy:(Math.random()*2+0.5),length:Math.random()*25+10});}
+const planets=[]; for(let i=0;i<5;i++){planets.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,radius:Math.random()*40+20,color:`hsl(${Math.random()*360},60%,70%)`});}
+
+function animateBackground(){
+ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+starsFar.forEach(s=>{s.y-=s.z*0.5;if(s.y<0){s.y=canvas.height;s.x=Math.random()*canvas.width;} ctx.beginPath(); ctx.arc(s.x,s.y,s.z,0,Math.PI*2); ctx.fillStyle='#888'; ctx.fill();});
+stars.forEach(s=>{s.y-=s.z*1.2;if(s.y<0){s.y=canvas.height;s.x=Math.random()*canvas.width;} ctx.beginPath(); ctx.arc(s.x,s.y,s.z,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();});
+ctx.strokeStyle='#aaa'; ctx.lineWidth=2; comets.forEach(c=>{ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c.x+c.dx*5,c.y+c.dy*5); ctx.stroke(); c.x+=c.dx;c.y+=c.dy; if(c.y>canvas.height||c.x<0||c.x>canvas.width){c.x=Math.random()*canvas.width;c.y=-10;}});
+planets.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();p.x-=0.2; if(p.x+p.radius<0){p.x=canvas.width+p.radius;p.y=Math.random()*canvas.height;}});
+
+requestAnimationFrame(animateBackground);
+}
+animateBackground();
+window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
+
+// ===== Слот =====
+const symbols=["🪐","🌑","⭐","☄️","🚀","🛸","🌌"];
+const bonusSymbols=["🪐","🌕","🌍","🛸"];
+const columns=5, rows=3;
+let balance=0,lastWin=0,freeSpins=0;
+const reelsEl=document.getElementById("reels");
+const balanceEl=document.getElementById("balance");
+const lastWinEl=document.getElementById("lastWin");
+const freeSpinsEl=document.getElementById("freeSpins");
+const spinSound=document.getElementById("spinSound");
+const winSound=document.getElementById("winSound");
+const bonusSound=document.getElementById("bonusSound");
+const bgMusic=document.getElementById("bgMusic");
+let musicOn=true;
+let inBonus=false, bonusSpins=0;
+
+for(let i=0;i<columns*rows;i++){const d=document.createElement("div");d.className="cell";d.textContent="?";reelsEl.appendChild(d);}
+
+function setDeposit(){balance=Math.min(parseInt(document.getElementById("deposit").value)||0,1000000);balanceEl.textContent=balance;}
+function toggleMusic(){musicOn=!musicOn;if(musicOn){bgMusic.play();}else{bgMusic.pause();}}
+
+function spin(){
+const bet=parseInt(document.getElementById("bet").value)||1;
+if(freeSpins<=0 && balance<bet){alert("Недостаточно средств!");return;}
+if(freeSpins<=0) balance-=bet; else freeSpins--;
+balanceEl.textContent=balance;
+spinSound.play();
+
+const cells=Array.from(document.querySelectorAll(".cell"));
+let grid=[]; const steps=6;
+for(let step=0;step<steps;step++){
+setTimeout(()=>{
+for(let c=0;c<columns;c++){grid[c]=[];for(let r=0;r<rows;r++){
+const s=inBonus?bonusSymbols[Math.floor(Math.random()*bonusSymbols.length)]:symbols[Math.floor(Math.random()*symbols.length)];
+grid[c][r]=s;
+cells[r*columns+c].textContent=s;
+cells[r*columns+c].style.transform="rotateX(360deg)";
+setTimeout(()=>cells[r*columns+c].style.transform="rotateX(0deg)",100);
+}}
+}, step*150);
+}
+setTimeout(()=>evaluate(grid,bet),steps*150+200);
+}
+
+function evaluate(grid,bet){
+let win=0;
+for(let r=0;r<rows;r++){
+const rowSymbols=grid.map(col=>col[r]);
+const counts={};
+rowSymbols.forEach(s=>counts[s]=(counts[s]||0)+1);
+for(let sym in counts){
+if(counts[sym]>=3){win+=bet*10; cosmicExplosion(rowSymbols.map((_,i)=>i),r);}
+if(counts[sym]==5){win+=bet*50; cosmicExplosion(rowSymbols.map((_,i)=>i),r);}
+}
+}
+const flat=grid.flat();
+const scatters=flat.filter(s=>"⭐"===s).length;
+if(scatters>=3){startBonus();}
+if(win>0){winSound.play();balance+=win;}
+lastWin=win;
+balanceEl.textContent=balance;
+lastWinEl.textContent=lastWin;
+freeSpinsEl.textContent=freeSpins;
+}
+
+function cosmicExplosion(cols,row){
+const cells=Array.from(document.querySelectorAll(".cell"));
+cols.forEach(c=>{
+const idx=row*columns+c;
+const cell=cells[idx];
+cell.classList.add("win");
+cell.style.transition="transform 0.7s, box-shadow 0.7s";
+cell.style.transform="scale(2.5) rotate(1080deg)";
+setTimeout(()=>{cell.style.transform="scale(1) rotate(0deg)";cell.classList.remove("win");},800);
+});
+
+}
+
+function startBonus(){inBonus=true;bonusSpins=12;alert("БОНУСНАЯ ИГРА 12 СПИНОВ!");bonusSound.play();}
+
+balanceEl.textContent=balance; lastWinEl.textContent=lastWin; freeSpinsEl.textContent=freeSpins;
+</script>
+
+</body>
+</html>
